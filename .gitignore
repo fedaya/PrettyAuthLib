@@ -37,3 +37,4 @@ application/logs/*
 /application/views/
 /application/.htaccess
 /nbproject/
+/doc/

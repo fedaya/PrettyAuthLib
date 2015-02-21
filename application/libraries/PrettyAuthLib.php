@@ -23,7 +23,8 @@
  *
  * @author Etienne Gille
  */
-class PrettyAuthLib {
+class PrettyAuthLib 
+{
     
     /**
      * Holds the caller's controller instance
@@ -42,7 +43,6 @@ class PrettyAuthLib {
      */
     private $cookie;
     
-    private static $AUTHENTICATION_TOKEN = true;
     
     public function __construct() 
     {
@@ -60,57 +60,61 @@ class PrettyAuthLib {
      */
     public function is_authenticated() 
     {
-        return $this->session->userdata('PrettyAuthLib_authenticated') == $this->AUTHENTICATION_TOKEN;
+        return $this->session->userdata('PrettyAuthLib_authenticated');
     }
     
     /**
-     * Performs the login process
+     * Performs the login process if needed, or restore the session if saved.
+     *  unsuccessful by default
      * @param String $login_route
-     * @return boolean return false during the process and true afterwards
+     * @return integer return null during the process, true if the authentication is successfull, false if not
      */
     public function login(String $login_route = null) 
     {
         if (!$this->is_authenticated())
         {
             if (!$this->cookie) {
-                $this->load->helper('url');
-                $this->session->set_userdata(array(
-                    'PrettyAuthLib_referer' => current_url()
-                ));
-                redirect($login_route!==null?$login_route:$this->settings['login_route']);
-                return false;
-            } else {                
-                $array = array (
-                    'PrettyAuthLib_authenticated' => $this->AUTHENTICATION_TOKEN,
-                    'PrettyAuthLib_userData' => $this->cookie['value']['userData'],
-                );
-                $this->session->set_userdata($array);
-                $this->cookie['expire'] = $this->settings['cookie_lifetime'];
-                $this->input->set_cookie($this->cookie);
-                return true;
+                if (!($this->session->userdata('PrettyAuthLib_auth_success') || 
+                      $this->session->userdata('PrettyAuthLib_auth_failure'))) {
+                    $this->load->helper('url');
+                    $this->session->set_userdata(array(
+                        'PrettyAuthLib_referer' => current_url()
+                    ));
+                    $this->session->set_userdata(array('PrettyAuthLib_auth_failure' => true));
+                    redirect($login_route!==null?$login_route:$this->settings['login_route']);
+                    return null;
+                } elseif ($this->session->userdata('PrettyAuthLib_auth_failure')) {
+                    return false;
+                } else {
+                    $this->session->set_userdata(array('PrettyAuthLib_authenticated' => true));
+                    return true;
+                }
+            } else { 
+                    $array = array (
+                        'PrettyAuthLib_authenticated' => true,
+                        'PrettyAuthLib_userData' => $this->cookie['value']['userData'],
+                    );
+                    $this->session->set_userdata($array);
+                    $this->cookie['expire'] = $this->settings['cookie_lifetime'];
+                    $this->input->set_cookie($this->cookie);
+                    return true;
             }
         } else {
-            $array = array (
-                'PrettyAuthLib_authenticated' => $this->AUTHENTICATION_TOKEN,
-            );
-            $this->session->set_userdata($array);
             return true;
         }           
     }
     
     /**
-     * creates the authentication cookie if you want to remember it
+     * creates the authentication cookie to automatically relog the user in
      */
     public function remember_authentication() 
     {
         if (!$this->cookie) {
             $this->load->helper('url');
-            $cookie_value = array(
-                'userData' => $this->session->userdata('PrettyAuthLib_userData'),
-            );
+            $cookie_value = array('userData' => $this->session->userdata('PrettyAuthLib_userData'));
             $this->cookie = array(
                 'name' => $this->settings['cookie_name'],
-                'value' => "",
+                'value' => $cookie_value,
                 'expire' => $this->settings['cookie_lifetime'],
                 'domain' => base_url(),
                 'path' => '/',
@@ -124,7 +128,7 @@ class PrettyAuthLib {
     /**
      * deletes the authentication cookie
      */
-    public function cancel_authentication_memory() 
+    public function forget_authentication() 
     {
         $this->cookie['expire'] = time() - 3600;
         $this->cookie['value'] = array();
@@ -133,39 +137,48 @@ class PrettyAuthLib {
     }
     
     /**
-     * Performs the logout process
+     * Performs the logout process.
+     *  successful by default
      * @param String $logout_route the url to redirect the user to after the logout process
-     * @return boolean return false during the process and true afterwards
+     * @return boolean return null during the process, true if logged out successfuly, false if not
      */
     public function logout(String $logout_route = null) 
     {
+        //First check if the person is authenticated
         if ($this->is_authenticated()) {
+            if (!($this->session->userdata('PrettyAuthLib_auth_success') || 
+                    $this->session->userdata('PrettyAuthLib_auth_failure'))) {      
                 $this->load->helper('url');
-            $this->session->set_userdata(array(
-                'PrettyAuthLib_referer' => current_url()
-            ));
-            redirect($logout_route!==null?$logout_route:$this->settings['logout_route']);  
-            return false;
-        } else {
+                $this->session->set_userdata(array('PrettyAuthLib_referer' => current_url()));
+                $this->session->set_userdata(array('PrettyAuthLib_auth_success' => true));
+                redirect($logout_route!==null?$logout_route:$this->settings['logout_route']);  
+                return null;
+             } elseif ($this->session->userdata('PrettyAuthLib_auth_success')) {
+                 $this->session->unset_userdata('PrettyAuthLib_authenticated');
+                 return true;
+             } else {
+                 return false;
+             }
+        } else {           
             return true;
         }
     }
      
     /**
-     * Performs the logout process and then redirect the user to the specified URL
+     * Performs the logout process and then redirect the user to the specified URL.
+     *  successful by default
      * @param String $url the url to redirect the user to after the logout process
      * @param String $logout_route the route to use to perform the logout process
-     * @return boolean return false during the process and true afterwards
+     * @return boolean return null during the process, true if logged out successfuly, false if not
      */
     public function logout_and_redirect(String $url, String $logout_route = null) 
     {
-        if ($this->is_authenticated()) {
-            return $this->logout($logout_route!==null?$logout_route:$this->settings['logout_route']);
-        } else {
+        $process = $this->logout($logout_route!==null?$logout_route:$this->settings['logout_route']);
+        if ($process) {
             $this->load->helper('url');
             redirect($url);
-            return true;
         }
+        return $process;
         
     }
     /**
@@ -186,6 +199,7 @@ class PrettyAuthLib {
         $user_data = $this->session->userdata('PrettyAuthLib_userData');
         return $user_data;
     }
+    
     /**
      * set the user data to remember
      * @param array $user_data
@@ -194,6 +208,22 @@ class PrettyAuthLib {
     {
         $data = array ('PrettyAuthLib_userData' => $user_data);
         $this->session->set_userdata($data);
+    }
+    
+    /**
+     * use this function to indicate a failure in the logout process to PrettyAuthLib 
+     */
+    public function set_failure() {
+        $this->session->unset_userdata('PrettyAuthLib_auth_success');
+        $this->session->set_userdata(array('PrettyAuthLib_auth_failure'=> true));
+    }
+    
+    /**
+     * use this function to indicate a success in the login process to PrettyAuthLib
+     */
+    public function set_success() {
+        $this->session->unset_userdata('PrettyAuthLib_auth_failure');
+        $this->session->set_userdata(array('PrettyAuthLib_auth_success' => true));        
     }
 }
 
