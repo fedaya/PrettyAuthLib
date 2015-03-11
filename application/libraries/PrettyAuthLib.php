@@ -69,7 +69,7 @@ class PrettyAuthLib
      * @param String $login_route
      * @return integer return null during the process, true if the authentication is successfull, false if not
      */
-    public function login(String $login_route = null) 
+    public function login(String $login_route = null, String $protocol = null) 
     {
         if (!$this->is_authenticated())
         {
@@ -81,7 +81,13 @@ class PrettyAuthLib
                         'PrettyAuthLib_referer' => current_url()
                     ));
                     $this->session->set_userdata(array('PrettyAuthLib_auth_failure' => true));
-                    redirect($login_route!==null?$login_route:$this->settings['login_route']);
+                    $login_route = ($login_route!==null?$login_route:$this->settings['login_route']);
+                    $protocol = ($protocol!==null?$protocol:$this->settings['protocol']);
+                    $full_route = base_url().$login_route;
+                    if(!preg_match('/^'.$protocol.'/',$full_route)) {
+                        $full_route = preg_replace('/^[a-zA-z]+\:\/\//',$protocol."://",$full_route);
+                    }
+                    redirect($full_route);
                     return null;
                 } elseif ($this->session->userdata('PrettyAuthLib_auth_failure')) {
                     return false;
@@ -142,7 +148,7 @@ class PrettyAuthLib
      * @param String $logout_route the url to redirect the user to after the logout process
      * @return boolean return null during the process, true if logged out successfuly, false if not
      */
-    public function logout(String $logout_route = null) 
+    public function logout(String $logout_route = null, String $protocol = null) 
     {
         //First check if the person is authenticated
         if ($this->is_authenticated()) {
@@ -151,7 +157,14 @@ class PrettyAuthLib
                 $this->load->helper('url');
                 $this->session->set_userdata(array('PrettyAuthLib_referer' => current_url()));
                 $this->session->set_userdata(array('PrettyAuthLib_auth_success' => true));
-                redirect($logout_route!==null?$logout_route:$this->settings['logout_route']);  
+                
+                $logout_route = ($logout_route!==null?$logout_route:$this->settings['logout_route']);
+                $protocol = ($protocol!==null?$protocol:$this->settings['protocol']);
+                $full_route = base_url().$logout_route;
+                if(!preg_match('/^'.$protocol.'/',$full_route)) {
+                    $full_route = preg_replace('/^[a-zA-z]+\:\/\//',$protocol."://",$full_route);
+                }
+                redirect($full_route);                
                 return null;
              } elseif ($this->session->userdata('PrettyAuthLib_auth_success')) {
                  $this->session->unset_userdata('PrettyAuthLib_authenticated');
